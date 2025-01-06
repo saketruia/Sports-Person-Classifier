@@ -1,26 +1,24 @@
+
 from flask import Flask, request, jsonify
 import util
+
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # This handles CORS for all routes
+CORS(app)  # This will allow all domains
 
-@app.route('/classify_image', methods=['POST'])
+
+@app.route('/classify_image', methods=['GET', 'POST'])
 def classify_image():
-    # Assuming the image is sent as a base64-encoded string in a JSON payload
-    image_data = request.json.get('image_data')
+    image_data = request.form['image_data']
 
-    if not image_data:
-        return jsonify({'error': 'No image data provided'}), 400
+    response = jsonify(util.classify_image(image_data))
 
-    try:
-        # Process the image and classify it
-        result = util.classify_image(image_data)
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    response.headers.add('Access-Control-Allow-Origin', '*')
+
+    return response
 
 if __name__ == "__main__":
     print("Starting Python Flask Server For Sports Celebrity Image Classification")
-    util.load_saved_artifacts()  # Load model and other necessary artifacts
+    util.load_saved_artifacts()
     app.run(port=5000)

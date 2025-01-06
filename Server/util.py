@@ -37,7 +37,7 @@ def load_haar_cascades():
 # Function to get a base64 encoded image
 def get_b64_test_image_for_virat():
     # Return a valid base64 image for testing
-    with open("path_to_image_of_virat.jpg", "rb") as img_file:
+    with open("./test_images/virat1.jpg", "rb") as img_file:
         b64_string = base64.b64encode(img_file.read()).decode('utf-8')
     return b64_string
 

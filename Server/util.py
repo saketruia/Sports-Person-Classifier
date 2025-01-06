@@ -1,23 +1,27 @@
 import cv2
 import numpy as np
 import base64
-from io import BytesIO
-from PIL import Image
-import os
 import joblib
+import json
+from wavelet import w2d
+
+__model = None  # Add this line to declare the variable
+__class_names = None
+__class_name_to_number = {}
+__class_number_to_name = {}
 
 # Function to print the file path to verify it's correct
 def print_file_paths():
-    face_cascade_path = r'C:\Users\SAKET\OneDrive\Desktop\AIML\Sports Person Classifier\Server\opencv\haarcascade\haarcascade_frontalface_default.xml'
-    eye_cascade_path = r'C:\Users\SAKET\OneDrive\Desktop\AIML\Sports Person Classifier\Server\opencv\haarcascade\haarcascade_eye.xml'
+    face_cascade_path = r'C:/Users/SAKET/OneDrive/Desktop/AIML/Sports Person Classifier/Server/opencv/haarcascade/haarcascade_frontalface_default.xml'
+    eye_cascade_path = r'C:/Users/SAKET/OneDrive/Desktop/AIML/Sports Person Classifier/Server/opencv/haarcascade/haarcascade_eye.xml'
     
     print("Face Cascade Path: ", face_cascade_path)
     print("Eye Cascade Path: ", eye_cascade_path)
 
 # Function to load the Haar Cascade files and check if they are loaded properly
 def load_haar_cascades():
-    face_cascade_path = r'C:\Users\SAKET\OneDrive\Desktop\AIML\Sports Person Classifier\Server\opencv\haarcascade\haarcascade_frontalface_default.xml'
-    eye_cascade_path = r'C:\Users\SAKET\OneDrive\Desktop\AIML\Sports Person Classifier\Server\opencv\haarcascade\haarcascade_eye.xml'
+    face_cascade_path = r'C:/Users/SAKET/OneDrive/Desktop/AIML/Sports Person Classifier/Server/opencv/haarcascade/haarcascade_frontalface_default.xml'
+    eye_cascade_path = r'C:/Users/SAKET/OneDrive/Desktop/AIML/Sports Person Classifier/Server/opencv/haarcascade/haarcascade_eye.xml'
 
     face_cascade = cv2.CascadeClassifier(face_cascade_path)
     eye_cascade = cv2.CascadeClassifier(eye_cascade_path)
@@ -36,13 +40,12 @@ def load_haar_cascades():
 
 # Function to get a base64 encoded image
 def get_b64_test_image_for_virat():
-    # Return a valid base64 image for testing
     with open("./test_images/virat1.jpg", "rb") as img_file:
         b64_string = base64.b64encode(img_file.read()).decode('utf-8')
     return b64_string
 
 # Function to crop the image if 2 eyes are detected
-def get_cropped_image_if_2_eyes(file_path, image_base64_data):
+def get_cropped_image_if_2_eyes(image_base64_data):
     # Load the Haar cascades
     face_cascade, eye_cascade = load_haar_cascades()
     
@@ -74,26 +77,50 @@ def get_cropped_image_if_2_eyes(file_path, image_base64_data):
     raise ValueError("Could not detect two eyes!")
 
 # Function to classify the image (dummy classification for illustration)
-def classify_image(image_base64_data, file_path=None):
+def classify_image(image_base64_data):
     print_file_paths()  # Debug: print paths of the Haar cascades
-    imgs = get_cropped_image_if_2_eyes(file_path, image_base64_data)
+    img = get_cropped_image_if_2_eyes(image_base64_data)
+    
+    # Process image for classification
+    scalled_raw_img = cv2.resize(img, (32, 32))
+    img_har = w2d(img, 'db1', 5)
+    scalled_img_har = cv2.resize(img_har, (32, 32))
+    
+    # Combine raw and wavelet images
+    combined_img = np.vstack((scalled_raw_img.reshape(32 * 32 * 3, 1), scalled_img_har.reshape(32 * 32, 1)))
 
-    # Here you can integrate your classification model for predicting the sportsperson
-    # For demonstration, returning a dummy classification result
-    return "Virat Kohli"
+    len_image_array = 32*32*3 + 32*32
+
+    final = combined_img.reshape(1, len_image_array).astype(float)
+
+    # Get predicted class from model
+    predicted_class_number = __model.predict(final)[0]
+    predicted_class = __class_number_to_name[predicted_class_number]
+    
+    result = {
+        'class': predicted_class,
+        'class_probability': np.around(__model.predict_proba(final) * 100, 2).tolist()[0],
+        'class_dictionary': __class_name_to_number
+    }
+
+    return result
+
+def load_saved_artifacts():
+    print("loading saved artifacts...start")
+    global __class_name_to_number
+    global __class_number_to_name
+
+    with open("./artifacts/class_dictionary.json", "r") as f:
+        __class_name_to_number = json.load(f)
+        __class_number_to_name = {v: k for k, v in __class_name_to_number.items()}
+
+    global __model
+    if __model is None:
+        with open('./artifacts/saved_model.pkl', 'rb') as f:
+            __model = joblib.load(f)
+    print("loading saved artifacts...done")
 
 # Main execution block
 if __name__ == "__main__":
-    try:
-        print("Loading saved artifacts...start")
-        # Load the classifier (replace with your actual classifier loading code)
-        # Example: clf = joblib.load('model.pkl')
-
-        print("Loading saved artifacts...done")
-
-        # Test the classification function with a sample image
-        result = classify_image(get_b64_test_image_for_virat(), None)
-        print(f"Classification Result: {result}")
-
-    except Exception as e:
-        print(f"Error: {e}")
+    load_saved_artifacts()
+    print(classify_image(get_b64_test_image_for_virat()))
